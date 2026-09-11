@@ -46,13 +46,32 @@ npm run build
 
 Esto genera una carpeta `dist/`. Arrastra **esa carpeta** (no el proyecto completo) a [app.netlify.com/drop](https://app.netlify.com/drop).
 
+## Instalarlo como PWA en tu celular (una vez desplegado)
+
+Este proyecto ya está configurado como **PWA** (Progressive Web App) — instalable desde el navegador, sin pasar por App Store ni Google Play.
+
+**Requisito importante:** la instalación como PWA solo funciona sobre **HTTPS** (o en `localhost`). Si despliegas en Vercel, ya viene con HTTPS automático — no necesitas hacer nada extra.
+
+- **Android (Chrome):** abre el link → menú (⋮) → "Instalar app" o "Agregar a pantalla de inicio".
+- **iPhone (Safari):** abre el link → botón de compartir (□↑) → "Agregar a pantalla de inicio". *(iOS solo permite instalar PWAs desde Safari, no desde Chrome ni otros navegadores en iPhone — es una limitación de Apple, no del proyecto.)*
+
+Una vez instalada, abre igual que cualquier otra app: ícono en la pantalla de inicio, sin barra de navegador, pantalla completa.
+
+**Importante — qué SÍ y qué NO resuelve esto todavía:** la app se ve y se siente instalada como una app real, pero **sigue sin base de datos real** — los datos viven en memoria del navegador mientras la tienes abierta. Esto es la capa de "se siente como app", no el backend real (eso es Fase 1, ver `../docs/`).
+
 ## Estructura del proyecto
 
 ```
 planpro-app/
-├── index.html          ← punto de entrada HTML
+├── index.html          ← punto de entrada HTML (incluye las etiquetas de PWA)
+├── public/
+│   ├── manifest.json     ← nombre, ícono y colores de la PWA
+│   ├── service-worker.js ← permite que funcione instalada / con caché básica
+│   ├── icon-192.png
+│   ├── icon-512.png
+│   └── icon-maskable-512.png
 ├── src/
-│   ├── main.jsx         ← monta React en la página
+│   ├── main.jsx         ← monta React y registra el service worker
 │   ├── App.jsx           ← todo el prototipo (paneles, portal, lógica)
 │   └── index.css         ← Tailwind
 ├── package.json
