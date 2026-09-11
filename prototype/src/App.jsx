@@ -25,7 +25,7 @@ const CLIENT_TABS = [
   { id: "hoy", label: "Hoy", Icon: Home },
   { id: "comidas", label: "Comidas", Icon: Utensils },
   { id: "entreno", label: "Entreno", Icon: Dumbbell },
-  { id: "progreso", label: "Progreso", Icon: TrendingUp },
+  { id: "progreso", label: "Cuenta", Icon: TrendingUp },
 ];
 
 const COACH_NAV_ITEMS = [
@@ -232,6 +232,7 @@ const INITIAL_CLIENTS = [
     supplementLog: { s1: true },
     billing: { amount: 100, currency: "USD", dueDate: isoOffset(-2), status: "pendiente_revision", history: [] },
     pendingReceipt: { dataUrl: null, date: "Hoy" },
+    planDraft: null,
     mealLogs: {
       m1: { items: { 0: true, 1: true, 2: true }, other: "", photo: null },
       m2: { items: { 0: true, 1: false, 2: false }, other: "", photo: null },
@@ -342,6 +343,7 @@ const INITIAL_CLIENTS = [
       history: [{ id: "pay1", date: "1 ago", amount: 100, status: "confirmado" }],
     },
     pendingReceipt: null,
+    planDraft: null,
     mealLogs: {},
     workoutLog: {},
     checkin: { mood: null, energy: 0, foodFeeling: null, workoutFeeling: null, savedToday: false },
@@ -544,6 +546,137 @@ function IndexCard({ accent = "#0f766e", className = "", children }) {
 // PANEL DEL COACH
 // ---------------------------------------------------------------------------
 
+function ClientInfoEditor({ client, updateClient, onDone }) {
+  const [form, setForm] = useState({
+    name: client.name,
+    age: client.age,
+    sex: client.sex,
+    weight: client.weight,
+    height: client.height,
+    activity: client.activity,
+  });
+  const [macros, setMacros] = useState(client.macros);
+  const tdee = calcTdee(form);
+
+  const applyCalculated = () => {
+    setMacros({
+      kcal: tdee,
+      protein: Math.round((tdee * 0.3) / 4),
+      carbs: Math.round((tdee * 0.4) / 4),
+      fats: Math.round((tdee * 0.3) / 9),
+    });
+  };
+
+  const save = () => {
+    updateClient(client.id, { ...form, macros });
+    onDone();
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-stone-100">
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <label className="col-span-2 text-xs text-stone-600">
+          Nombre
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+          />
+        </label>
+        <label className="text-xs text-stone-600">
+          Edad
+          <input
+            type="number"
+            value={form.age}
+            onChange={(e) => setForm({ ...form, age: Number(e.target.value) })}
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+          />
+        </label>
+        <label className="text-xs text-stone-600">
+          Sexo
+          <select
+            value={form.sex}
+            onChange={(e) => setForm({ ...form, sex: e.target.value })}
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+          >
+            <option value="male">Masculino</option>
+            <option value="female">Femenino</option>
+          </select>
+        </label>
+        <label className="text-xs text-stone-600">
+          Peso (kg)
+          <input
+            type="number"
+            value={form.weight}
+            onChange={(e) => setForm({ ...form, weight: Number(e.target.value) })}
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+          />
+        </label>
+        <label className="text-xs text-stone-600">
+          Estatura (cm)
+          <input
+            type="number"
+            value={form.height}
+            onChange={(e) => setForm({ ...form, height: Number(e.target.value) })}
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+          />
+        </label>
+        <label className="col-span-2 text-xs text-stone-600">
+          Nivel de actividad
+          <select
+            value={form.activity}
+            onChange={(e) => setForm({ ...form, activity: Number(e.target.value) })}
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+          >
+            {ACTIVITY_FACTORS.map((a) => (
+              <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="flex items-center justify-between bg-stone-50 border border-stone-200 px-4 py-3 mb-3">
+        <div>
+          <p className="text-[11px] text-stone-500">Calorías estimadas (TDEE) con estos datos</p>
+          <p className="pp-display text-lg text-teal-800">{tdee} kcal</p>
+        </div>
+        <button onClick={applyCalculated} className="text-xs font-medium px-3 py-2 border border-teal-700 text-teal-800">
+          Usar este cálculo
+        </button>
+      </div>
+
+      <p className="text-xs font-medium text-stone-600 mb-2">Macros objetivo (puedes ajustarlos manualmente)</p>
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        {[
+          ["kcal", "Kcal"],
+          ["protein", "Proteína"],
+          ["carbs", "Carbos"],
+          ["fats", "Grasas"],
+        ].map(([key, label]) => (
+          <label key={key} className="text-[10px] text-stone-500">
+            {label}
+            <input
+              type="number"
+              value={macros[key]}
+              onChange={(e) => setMacros({ ...macros, [key]: Number(e.target.value) })}
+              className="mt-1 w-full border border-stone-300 px-2 py-1.5 text-xs focus:outline-none focus:border-teal-700"
+            />
+          </label>
+        ))}
+      </div>
+
+      <div className="flex gap-2 justify-end">
+        <button onClick={onDone} className="px-4 py-2 text-xs font-medium text-stone-600 hover:text-stone-900">
+          Cancelar
+        </button>
+        <button onClick={save} className="px-5 py-2 text-xs font-medium text-white bg-teal-800 hover:bg-teal-900">
+          Guardar cambios
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function NewClientForm({ onCreate, onCancel }) {
   const [form, setForm] = useState({
     name: "", age: 28, sex: "male", weight: 75, height: 175, activity: 1.2,
@@ -653,6 +786,7 @@ function NewClientForm({ onCreate, onCancel }) {
               supplementLog: {},
               billing: { amount: 0, currency: "USD", dueDate: "", status: "al_dia", history: [] },
               pendingReceipt: null,
+              planDraft: null,
               mealLogs: {},
               workoutLog: {},
               checkin: { mood: null, energy: 0, foodFeeling: null, workoutFeeling: null, savedToday: false },
@@ -1781,6 +1915,40 @@ function generateMealPlanOption(macros, foodLibrary) {
   };
 }
 
+const WORKOUT_SPLIT_TEMPLATE = [
+  { name: "Día de empuje", groups: ["Pecho", "Hombros", "Brazos"], weekdays: ["Lunes"] },
+  { name: "Día de tirón", groups: ["Espalda", "Brazos"], weekdays: ["Miércoles"] },
+  { name: "Día de pierna", groups: ["Piernas", "Glúteos", "Core"], weekdays: ["Viernes"] },
+];
+
+// Genera una rutina de 3 días distribuida por grupo muscular, usando la
+// biblioteca de ejercicios del coach. Mismo principio que el generador de
+// comidas: algorítmico y determinístico, no una llamada a IA externa.
+function generateWorkoutDraft(exerciseLibrary) {
+  return WORKOUT_SPLIT_TEMPLATE.map((day, i) => {
+    const pool = exerciseLibrary.filter((ex) => day.groups.includes(ex.muscleGroup));
+    const usedIds = [];
+    const picks = [];
+    for (let k = 0; k < Math.min(4, pool.length); k++) {
+      const ex = pickRandom(pool, usedIds);
+      if (!ex) break;
+      usedIds.push(ex.id);
+      picks.push({
+        id: `w${Date.now()}-${i}-${k}-${Math.random().toString(36).slice(2, 5)}`,
+        name: ex.name,
+        detail: `${ex.defaultSets} x ${ex.defaultReps}`,
+      });
+    }
+    return {
+      id: `d${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
+      name: day.name,
+      weekdays: day.weekdays,
+      muscleGroups: day.groups,
+      exercises: picks,
+    };
+  });
+}
+
 function MealPlanGenerator({ client, updateClient, foodLibrary }) {
   const [options, setOptions] = useState(null);
 
@@ -2550,11 +2718,55 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
   const [editSupplements, setEditSupplements] = useState(false);
   const [detailTab, setDetailTab] = useState("plan");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [editClientInfo, setEditClientInfo] = useState(false);
 
   const filtered = clients.filter((c) =>
     c.name.toLowerCase().includes(query.toLowerCase())
   );
   const selected = clients.find((c) => c.id === selectedId) || null;
+
+  // Si el cliente tiene un borrador de plan pendiente de aprobar, todo lo que
+  // el coach vea/edite en "Plan" debe operar sobre el borrador, no sobre el
+  // plan publicado — así el cliente no ve nada a medio construir.
+  const hasDraft = !!selected?.planDraft;
+  const planClient = selected && (hasDraft
+    ? { ...selected, meals: selected.planDraft.meals, workoutDays: selected.planDraft.workoutDays }
+    : selected);
+  const planUpdateClient = hasDraft
+    ? (id, patch) => {
+        const newDraft = { ...selected.planDraft };
+        if (patch.meals) newDraft.meals = patch.meals;
+        if (patch.workoutDays) newDraft.workoutDays = patch.workoutDays;
+        updateClient(id, { planDraft: newDraft });
+      }
+    : updateClient;
+
+  const generateFullDraft = () => {
+    if (!selected) return;
+    updateClient(selected.id, {
+      planDraft: {
+        meals: generateMealPlanOption(selected.macros, foodLibrary).meals,
+        workoutDays: generateWorkoutDraft(exerciseLibrary),
+      },
+    });
+    setEditMeals(true);
+    setEditWorkout(true);
+  };
+
+  const approveDraft = () => {
+    if (!selected?.planDraft) return;
+    updateClient(selected.id, {
+      meals: selected.planDraft.meals,
+      workoutDays: selected.planDraft.workoutDays,
+      planDraft: null,
+    });
+  };
+
+  const discardDraft = () => {
+    if (!selected) return;
+    updateClient(selected.id, { planDraft: null });
+  };
+
 
   return (
     <div className="flex flex-col md:flex-row min-h-[640px] pp-body">
@@ -2733,6 +2945,12 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
+                          onClick={() => setEditClientInfo((v) => !v)}
+                          className="flex items-center gap-2 text-xs font-medium px-3 py-2 border border-stone-300 hover:border-teal-700 hover:text-teal-800"
+                        >
+                          {editClientInfo ? "Cerrar" : "Editar datos"}
+                        </button>
+                        <button
                           onClick={() => openPdf(selected.id)}
                           className="flex items-center gap-2 text-xs font-medium px-3 py-2 border border-stone-300 hover:border-stone-900"
                         >
@@ -2747,29 +2965,35 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                       </div>
                     </div>
 
-                    <label className="flex items-center gap-2 mt-4 text-xs text-stone-500 cursor-pointer w-fit">
-                      <input
-                        type="checkbox"
-                        checked={!selected.usesApp}
-                        onChange={() => updateClient(selected.id, { usesApp: !selected.usesApp })}
-                        className="w-3.5 h-3.5"
-                      />
-                      Este cliente no usa la app — gestionar su plan solo por PDF
-                    </label>
+                    {editClientInfo ? (
+                      <ClientInfoEditor client={selected} updateClient={updateClient} onDone={() => setEditClientInfo(false)} />
+                    ) : (
+                      <>
+                        <label className="flex items-center gap-2 mt-4 text-xs text-stone-500 cursor-pointer w-fit">
+                          <input
+                            type="checkbox"
+                            checked={!selected.usesApp}
+                            onChange={() => updateClient(selected.id, { usesApp: !selected.usesApp })}
+                            className="w-3.5 h-3.5"
+                          />
+                          Este cliente no usa la app — gestionar su plan solo por PDF
+                        </label>
 
-                    <div className="grid grid-cols-4 gap-3 mt-5">
-                      {[
-                        ["Calorías", `${selected.macros.kcal}`],
-                        ["Proteína", `${selected.macros.protein}g`],
-                        ["Carbos", `${selected.macros.carbs}g`],
-                        ["Grasas", `${selected.macros.fats}g`],
-                      ].map(([label, val]) => (
-                        <div key={label} className="bg-stone-50 border border-stone-200 px-3 py-2 text-center">
-                          <p className="text-[11px] text-stone-500">{label}</p>
-                          <p className="pp-display text-lg text-stone-900">{val}</p>
+                        <div className="grid grid-cols-4 gap-3 mt-5">
+                          {[
+                            ["Calorías", `${selected.macros.kcal}`],
+                            ["Proteína", `${selected.macros.protein}g`],
+                            ["Carbos", `${selected.macros.carbs}g`],
+                            ["Grasas", `${selected.macros.fats}g`],
+                          ].map(([label, val]) => (
+                            <div key={label} className="bg-stone-50 border border-stone-200 px-3 py-2 text-center">
+                              <p className="text-[11px] text-stone-500">{label}</p>
+                              <p className="pp-display text-lg text-stone-900">{val}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </>
+                    )}
                   </IndexCard>
 
                   <div className="flex gap-1 bg-white border border-stone-200 p-1 w-fit">
@@ -2792,10 +3016,40 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
 
                   {detailTab === "plan" && (
                   <>
+                  {hasDraft ? (
+                    <IndexCard accent="#c99a3e" className="p-5">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-stone-900">📝 Borrador generado — el cliente todavía no lo ve</p>
+                          <p className="text-xs text-stone-500 mt-1">
+                            Revisa y ajusta las tarjetas de abajo. El cliente sigue viendo su plan actual hasta que apruebes.
+                          </p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button onClick={discardDraft} className="px-3 py-2 text-xs font-medium border border-stone-300 text-stone-600">
+                            Descartar
+                          </button>
+                          <button onClick={approveDraft} className="px-3 py-2 text-xs font-medium text-white bg-stone-900">
+                            Aprobar y publicar
+                          </button>
+                        </div>
+                      </div>
+                    </IndexCard>
+                  ) : (
+                    <button
+                      onClick={generateFullDraft}
+                      className="flex items-center justify-center gap-2 w-full py-3 text-sm font-medium text-white"
+                      style={{ backgroundColor: "#c99a3e" }}
+                    >
+                      <Sparkles size={15} /> Generar plan completo (comida + entrenamiento)
+                    </button>
+                  )}
+
                   <IndexCard accent="#c99a3e" className="p-6">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
                         <Utensils size={15} className="text-amber-600" /> Plan de alimentación
+                        {hasDraft && <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5">Borrador</span>}
                       </h3>
                       <button
                         onClick={() => setEditMeals((v) => !v)}
@@ -2807,12 +3061,12 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                     </div>
                     {editMeals ? (
                       <>
-                        <MealPlanGenerator client={selected} updateClient={updateClient} foodLibrary={foodLibrary} />
-                        <MealPlanEditor client={selected} updateClient={updateClient} foodLibrary={foodLibrary} />
+                        <MealPlanGenerator client={planClient} updateClient={planUpdateClient} foodLibrary={foodLibrary} />
+                        <MealPlanEditor client={planClient} updateClient={planUpdateClient} foodLibrary={foodLibrary} />
                       </>
                     ) : (
                       <div className="divide-y divide-stone-100">
-                        {selected.meals.map((m) => (
+                        {planClient.meals.map((m) => (
                           <div key={m.id} className="flex items-start justify-between gap-4 py-2.5 text-sm">
                             <span className="text-stone-700 font-medium shrink-0">{m.name}</span>
                             <span className="text-stone-500 text-right">
@@ -2830,6 +3084,7 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
                         <Dumbbell size={15} className="text-violet-600" /> Plan de entrenamiento
+                        {hasDraft && <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5">Borrador</span>}
                       </h3>
                       <button
                         onClick={() => setEditWorkout((v) => !v)}
@@ -2840,10 +3095,10 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                       </button>
                     </div>
                     {editWorkout ? (
-                      <WorkoutPlanEditor client={selected} updateClient={updateClient} exerciseLibrary={exerciseLibrary} />
+                      <WorkoutPlanEditor client={planClient} updateClient={planUpdateClient} exerciseLibrary={exerciseLibrary} />
                     ) : (
                       <div className="flex flex-col gap-4">
-                        {selected.workoutDays.map((day) => (
+                        {planClient.workoutDays.map((day) => (
                           <div key={day.id}>
                             <div className="flex items-center gap-2 flex-wrap mb-0.5">
                               <p className="text-xs font-semibold text-stone-800">{day.name}</p>
@@ -3300,6 +3555,7 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
   const [newWeight, setNewWeight] = useState("");
   const [showWeightForm, setShowWeightForm] = useState(false);
   const [activeTab, setActiveTab] = useState("hoy");
+  const [progresoSubTab, setProgresoSubTab] = useState("perfil");
   const todayWeekday = getTodayWeekday();
   const [selectedWeekday, setSelectedWeekday] = useState(todayWeekday);
   const activeDay = client.workoutDays.find((d) => d.weekdays?.includes(selectedWeekday)) || null;
@@ -3535,11 +3791,28 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
     : null;
   const isEvalSoon = !isEvalDue && daysUntilEval !== null && daysUntilEval <= 5;
 
-  const totalTasks = client.meals.length + (activeDay?.exercises.length || 0) + (client.supplements || []).length;
-  const doneTasks =
-    client.meals.filter((m) => isMealLogged(m.id)).length +
-    (activeDay ? activeDay.exercises.filter((w) => workoutLog[activeDay.id]?.[w.id]).length : 0) +
-    (client.supplements || []).filter((s) => supplementLog[s.id]).length;
+  const mealsLoggedCount = client.meals.filter((m) => isMealLogged(m.id)).length;
+  const totalMealsCount = client.meals.length;
+  const exLoggedCount = activeDay ? activeDay.exercises.filter((w) => workoutLog[activeDay.id]?.[w.id]).length : 0;
+  const totalExercisesCount = activeDay ? activeDay.exercises.length : 0;
+  const suppLoggedCount = (client.supplements || []).filter((s) => supplementLog[s.id]).length;
+  const totalSupplementsCount = (client.supplements || []).length;
+
+  const mealsPct = totalMealsCount ? mealsLoggedCount / totalMealsCount : 1;
+  const workoutPct = activeDay ? (totalExercisesCount ? exLoggedCount / totalExercisesCount : 1) : null;
+  const supplementsPct = totalSupplementsCount ? suppLoggedCount / totalSupplementsCount : null;
+
+  const nextAction = (() => {
+    const nextMeal = client.meals.find((m) => !isMealLogged(m.id));
+    if (nextMeal) return { label: `Comida: ${nextMeal.name}`, tab: "comidas" };
+    if (activeDay) {
+      const nextEx = activeDay.exercises.find((w) => !workoutLog[activeDay.id]?.[w.id]);
+      if (nextEx) return { label: `Ejercicio: ${nextEx.name}`, tab: "entreno" };
+    }
+    const nextSupp = (client.supplements || []).find((s) => !supplementLog[s.id]);
+    if (nextSupp) return { label: `Suplemento: ${nextSupp.name}`, tab: "comidas" };
+    return { label: "¡Completaste tu plan de hoy! 🎉", tab: null };
+  })();
 
   const evalNotify = isEvalDue && !client.pendingEvaluation;
 
@@ -3593,16 +3866,47 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
             )}
 
             <IndexCard accent={accent} className="p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="pp-display text-lg text-stone-900">Plan de hoy</h2>
-                <span className="text-xs font-medium text-stone-500">{doneTasks}/{totalTasks} completado</span>
+              <h2 className="pp-display text-lg text-stone-900 mb-4">Plan de hoy</h2>
+
+              <div className="flex items-start justify-around mb-4">
+                <div className="flex flex-col items-center gap-1.5">
+                  <ProgressRing pct={mealsPct} color={MACRO_COLORS.carbs} size={52} />
+                  <span className="text-[11px] font-medium text-stone-600">Comidas</span>
+                  <span className="text-[10px] text-stone-400">{mealsLoggedCount}/{totalMealsCount}</span>
+                </div>
+
+                <div className="flex flex-col items-center gap-1.5">
+                  {workoutPct !== null ? (
+                    <>
+                      <ProgressRing pct={workoutPct} color="#7c3aed" size={52} />
+                      <span className="text-[11px] font-medium text-stone-600">Entreno</span>
+                      <span className="text-[10px] text-stone-400">{exLoggedCount}/{totalExercisesCount}</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-[52px] h-[52px] rounded-full border-2 border-dashed border-stone-300 flex items-center justify-center">
+                        <span className="text-[9px] text-stone-400 text-center leading-tight">Descanso</span>
+                      </div>
+                      <span className="text-[11px] font-medium text-stone-600">Entreno</span>
+                      <span className="text-[10px] text-stone-400">—</span>
+                    </>
+                  )}
+                </div>
+
+                {totalSupplementsCount > 0 && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <ProgressRing pct={supplementsPct} color={MACRO_COLORS.fats} size={52} />
+                    <span className="text-[11px] font-medium text-stone-600">Suplementos</span>
+                    <span className="text-[10px] text-stone-400">{suppLoggedCount}/{totalSupplementsCount}</span>
+                  </div>
+                )}
               </div>
-              <div className="w-full h-1.5 bg-stone-100 mt-2 mb-1">
-                <div
-                  className="h-1.5 transition-all"
-                  style={{ width: `${totalTasks ? (doneTasks / totalTasks) * 100 : 0}%`, backgroundColor: accent }}
-                />
+
+              <div className="border-t border-stone-100 pt-3">
+                <p className="text-[11px] text-stone-500">Siguiente</p>
+                <p className="text-sm font-medium text-stone-800 mt-0.5">{nextAction.label}</p>
               </div>
+
               <div className="flex gap-2 mt-4">
                 <button
                   onClick={() => setActiveTab("comidas")}
@@ -3966,8 +4270,87 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
 
         {activeTab === "progreso" && (
           <>
-            <PaymentCard client={client} coachProfile={coachProfile} onUpdate={onUpdate} accent={accent} receiptPreview={receiptPreview} pickReceipt={pickReceipt} submitReceipt={submitReceipt} />
+            <div className="flex gap-1 bg-white border border-stone-200 p-1 w-fit">
+              {[
+                { id: "perfil", label: "Perfil" },
+                { id: "seguimiento", label: "Seguimiento" },
+                { id: "pago", label: "Pago" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setProgresoSubTab(t.id)}
+                  className="px-4 py-1.5 text-xs font-medium"
+                  style={
+                    progresoSubTab === t.id
+                      ? { backgroundColor: accent, color: "#fff" }
+                      : { color: "#78716c" }
+                  }
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
+            {progresoSubTab === "pago" && (
+              <PaymentCard client={client} coachProfile={coachProfile} onUpdate={onUpdate} accent={accent} receiptPreview={receiptPreview} pickReceipt={pickReceipt} submitReceipt={submitReceipt} />
+            )}
+
+            {progresoSubTab === "perfil" && (
+              <>
+                <IndexCard accent={accent} className="p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span
+                      className="w-12 h-12 flex items-center justify-center text-base font-bold rounded-full"
+                      style={{ backgroundColor: accent, color: "#0a0a0a" }}
+                    >
+                      {client.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-stone-900">{client.name}</p>
+                      <p className="text-xs text-stone-500">Cliente de {coachProfile.name}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      ["Edad", `${client.age} años`],
+                      ["Sexo", client.sex === "male" ? "Masculino" : "Femenino"],
+                      ["Peso", `${client.weight} kg`],
+                      ["Estatura", `${client.height} cm`],
+                      ["Actividad", ACTIVITY_FACTORS.find((a) => a.value === client.activity)?.label || "—"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-stone-50 border border-stone-200 px-3 py-2">
+                        <p className="text-[10px] text-stone-500 uppercase tracking-wide">{label}</p>
+                        <p className="text-sm font-medium text-stone-800 mt-0.5">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-stone-400 mt-3">
+                    ¿Algo desactualizado? Avísale a tu coach para que lo corrija.
+                  </p>
+                </IndexCard>
+
+                <IndexCard accent="#0f766e" className="p-5">
+                  <h3 className="text-sm font-semibold text-stone-900 mb-3">Tu objetivo diario</h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      ["Calorías", client.macros.kcal, "#1c1917"],
+                      ["Proteína", `${client.macros.protein}g`, MACRO_COLORS.protein],
+                      ["Carbos", `${client.macros.carbs}g`, MACRO_COLORS.carbs],
+                      ["Grasas", `${client.macros.fats}g`, MACRO_COLORS.fats],
+                    ].map(([label, value, color]) => (
+                      <div key={label} className="bg-stone-50 border border-stone-200 px-2 py-2.5 text-center">
+                        <p className="text-[9px] text-stone-500 uppercase tracking-wide">{label}</p>
+                        <p className="pp-display text-base mt-0.5" style={{ color }}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </IndexCard>
+              </>
+            )}
+
+            {progresoSubTab === "seguimiento" && (
+            <>
             <IndexCard accent="#0f766e" className="p-5">
               <button
                 onClick={() => setShowWeightForm((v) => !v)}
@@ -4192,6 +4575,8 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
                   </div>
                 )}
               </IndexCard>
+            )}
+            </>
             )}
           </>
         )}
