@@ -3,7 +3,7 @@ import {
   Users, Plus, ChevronRight, Check, TrendingUp, LogOut, Search,
   Utensils, Dumbbell, Sparkles, BookOpen, CreditCard,
   Smile, Flame, Camera, X, MessageCircle, ClipboardList,
-  Download, ArrowLeft, FileText, Home, Palette
+  Download, ArrowLeft, FileText, Home, Palette, Menu
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -26,6 +26,14 @@ const CLIENT_TABS = [
   { id: "comidas", label: "Comidas", Icon: Utensils },
   { id: "entreno", label: "Entreno", Icon: Dumbbell },
   { id: "progreso", label: "Progreso", Icon: TrendingUp },
+];
+
+const COACH_NAV_ITEMS = [
+  { id: "clientes", label: "Clientes", Icon: Users },
+  { id: "reporte", label: "Reporte diario", Icon: ClipboardList },
+  { id: "biblioteca", label: "Biblioteca", Icon: BookOpen },
+  { id: "marca", label: "Mi marca", Icon: Palette },
+  { id: "pagos", label: "Pagos", Icon: CreditCard },
 ];
 
 const MOOD_OPTIONS = [
@@ -2541,6 +2549,7 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
   const [editWorkout, setEditWorkout] = useState(false);
   const [editSupplements, setEditSupplements] = useState(false);
   const [detailTab, setDetailTab] = useState("plan");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const filtered = clients.filter((c) =>
     c.name.toLowerCase().includes(query.toLowerCase())
@@ -2548,54 +2557,57 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
   const selected = clients.find((c) => c.id === selectedId) || null;
 
   return (
-    <div className="flex min-h-[640px] pp-body">
-      {/* Rail de navegación */}
-      <div className="w-56 bg-stone-900 text-stone-300 flex flex-col py-6 shrink-0">
+    <div className="flex flex-col md:flex-row min-h-[640px] pp-body">
+      {/* Barra superior móvil */}
+      <div className="md:hidden flex items-center justify-between bg-stone-900 text-white px-5 py-4">
+        <div>
+          <span className="pp-display text-lg">PlanPro</span>
+          <p className="text-[11px] text-stone-500 -mt-0.5">Panel del coach</p>
+        </div>
+        <button
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          className="w-9 h-9 flex items-center justify-center border border-stone-700 text-stone-300"
+          aria-label="Abrir menú"
+        >
+          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+      </div>
+
+      {/* Menú desplegable móvil */}
+      {mobileMenuOpen && (
+        <nav className="md:hidden flex flex-col bg-stone-900 text-stone-300 px-3 pb-3">
+          {COACH_NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => { setNav(item.id); setMobileMenuOpen(false); }}
+              className={`flex items-center gap-2 px-3 py-3 text-sm text-left rounded ${
+                nav === item.id ? "bg-teal-800 text-white" : "hover:bg-stone-800"
+              }`}
+            >
+              <item.Icon size={16} /> {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {/* Rail de navegación (desktop) */}
+      <div className="hidden md:flex w-56 bg-stone-900 text-stone-300 flex-col py-6 shrink-0">
         <div className="px-5 mb-8">
           <span className="pp-display text-xl text-white">PlanPro</span>
           <p className="text-xs text-stone-500 mt-0.5">Panel del coach</p>
         </div>
         <nav className="flex flex-col gap-1 px-3">
-          <button
-            onClick={() => setNav("clientes")}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-r-full text-sm text-left transition ${
-              nav === "clientes" ? "bg-teal-800 text-white" : "hover:bg-stone-800"
-            }`}
-          >
-            <Users size={16} /> Clientes
-          </button>
-          <button
-            onClick={() => setNav("reporte")}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-r-full text-sm text-left transition ${
-              nav === "reporte" ? "bg-teal-800 text-white" : "hover:bg-stone-800"
-            }`}
-          >
-            <ClipboardList size={16} /> Reporte diario
-          </button>
-          <button
-            onClick={() => setNav("biblioteca")}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-r-full text-sm text-left transition ${
-              nav === "biblioteca" ? "bg-teal-800 text-white" : "hover:bg-stone-800"
-            }`}
-          >
-            <BookOpen size={16} /> Biblioteca
-          </button>
-          <button
-            onClick={() => setNav("marca")}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-r-full text-sm text-left transition ${
-              nav === "marca" ? "bg-teal-800 text-white" : "hover:bg-stone-800"
-            }`}
-          >
-            <Palette size={16} /> Mi marca
-          </button>
-          <button
-            onClick={() => setNav("pagos")}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-r-full text-sm text-left transition ${
-              nav === "pagos" ? "bg-teal-800 text-white" : "hover:bg-stone-800"
-            }`}
-          >
-            <CreditCard size={16} /> Pagos
-          </button>
+          {COACH_NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setNav(item.id)}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-r-full text-sm text-left transition ${
+                nav === item.id ? "bg-teal-800 text-white" : "hover:bg-stone-800"
+              }`}
+            >
+              <item.Icon size={16} /> {item.label}
+            </button>
+          ))}
         </nav>
       </div>
 
