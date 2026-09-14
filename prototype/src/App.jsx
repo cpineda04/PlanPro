@@ -143,6 +143,8 @@ const INITIAL_CLIENTS = [
     height: 178,
     activity: 1.55,
     usesApp: true,
+    hasMealPlan: true,
+    hasWorkoutPlan: true,
     macros: { kcal: 2450, protein: 180, carbs: 240, fats: 70 },
     meals: [
       {
@@ -271,6 +273,8 @@ const INITIAL_CLIENTS = [
     height: 165,
     activity: 1.375,
     usesApp: false,
+    hasMealPlan: true,
+    hasWorkoutPlan: true,
     macros: { kcal: 1780, protein: 130, carbs: 165, fats: 55 },
     meals: [
       {
@@ -421,20 +425,23 @@ function computeClientDailyStats(c) {
   const mealLogs = c.mealLogs || {};
   const workoutLog = c.workoutLog || {};
   const supplementLog = c.supplementLog || {};
-  const mealsLogged = c.meals.filter((m) => {
-    const log = mealLogs[m.id];
-    return log && (Object.values(log.items || {}).some(Boolean) || !!log.other);
-  }).length;
-  const todaysDay = getTodaysWorkoutDay(c);
+  const mealsLogged = c.hasMealPlan
+    ? c.meals.filter((m) => {
+        const log = mealLogs[m.id];
+        return log && (Object.values(log.items || {}).some(Boolean) || !!log.other);
+      }).length
+    : 0;
+  const totalMeals = c.hasMealPlan ? c.meals.length : 0;
+  const todaysDay = c.hasWorkoutPlan ? getTodaysWorkoutDay(c) : null;
   const totalExercises = todaysDay ? todaysDay.exercises.length : 0;
   const exLogged = todaysDay ? todaysDay.exercises.filter((w) => workoutLog[todaysDay.id]?.[w.id]).length : 0;
   const totalSupplements = (c.supplements || []).length;
   const supplementsLogged = (c.supplements || []).filter((s) => supplementLog[s.id]).length;
-  const totalItems = c.meals.length + totalExercises + totalSupplements;
+  const totalItems = totalMeals + totalExercises + totalSupplements;
   const doneItems = mealsLogged + exLogged + supplementsLogged;
   const pct = totalItems ? doneItems / totalItems : 1;
   return {
-    mealsLogged, totalMeals: c.meals.length, todaysDay, totalExercises, exLogged,
+    mealsLogged, totalMeals, todaysDay, totalExercises, exLogged,
     totalSupplements, supplementsLogged, totalItems, doneItems, pct,
   };
 }
@@ -764,6 +771,8 @@ function NewClientForm({ onCreate, onCancel }) {
               id: `c${Date.now()}`,
               ...form,
               usesApp: true,
+              hasMealPlan: true,
+              hasWorkoutPlan: true,
               macros: {
                 kcal: tdee,
                 protein: Math.round((tdee * 0.3) / 4),
@@ -1286,7 +1295,13 @@ function PrintPlanView({ client, coachProfile, onClose }) {
               <div>
                 <p className="pp-display text-2xl text-stone-900 leading-tight">{coachProfile.name}</p>
                 <p className="text-xs mt-1 font-medium uppercase tracking-wide" style={{ color: coachProfile.accent }}>
-                  Plan de alimentación y entrenamiento
+                  {client.hasMealPlan && client.hasWorkoutPlan
+                    ? "Plan de alimentación y entrenamiento"
+                    : client.hasMealPlan
+                    ? "Plan de alimentación"
+                    : client.hasWorkoutPlan
+                    ? "Plan de entrenamiento"
+                    : "Plan"}
                 </p>
               </div>
             </div>
@@ -1297,6 +1312,7 @@ function PrintPlanView({ client, coachProfile, onClose }) {
             </div>
           </div>
 
+          {client.hasMealPlan && (
           <div className="grid grid-cols-4 gap-3 mb-10">
             {[
               ["Calorías", client.macros.kcal],
@@ -1310,8 +1326,11 @@ function PrintPlanView({ client, coachProfile, onClose }) {
               </div>
             ))}
           </div>
+          )}
 
           {/* Nutrición */}
+          {client.hasMealPlan && (
+          <>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-1.5 h-5" style={{ backgroundColor: "#c99a3e" }} />
             <h2 className="pp-display text-lg text-stone-900 uppercase tracking-wide">Plan de alimentación</h2>
@@ -1338,8 +1357,12 @@ function PrintPlanView({ client, coachProfile, onClose }) {
               </div>
             ))}
           </div>
+          </>
+          )}
 
           {/* Entrenamiento */}
+          {client.hasWorkoutPlan && (
+          <>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-1.5 h-5" style={{ backgroundColor: "#7c3aed" }} />
             <h2 className="pp-display text-lg text-stone-900 uppercase tracking-wide">Plan de entrenamiento</h2>
@@ -1377,6 +1400,8 @@ function PrintPlanView({ client, coachProfile, onClose }) {
               <p className="text-sm text-stone-400">Sin días de entrenamiento definidos.</p>
             )}
           </div>
+          </>
+          )}
 
           {/* Suplementación */}
           {(client.supplements || []).length > 0 && (
@@ -1446,6 +1471,11 @@ function ClientReportRow({ c, onSelectClient }) {
   const { mealsLogged, totalMeals, todaysDay, totalExercises, exLogged, totalSupplements, supplementsLogged, pct } = stats;
   const ringColor = pct === 1 ? "#0f766e" : pct > 0 ? "#c99a3e" : "#dc2626";
 
+  const summaryParts = [];
+  if (c.hasMealPlan) summaryParts.push(`Comidas ${mealsLogged}/${totalMeals}`);
+  if (c.hasWorkoutPlan) summaryParts.push(todaysDay ? `Entrenamiento ${exLogged}/${totalExercises}` : "Descanso");
+  if (totalSupplements > 0) summaryParts.push(`Suplementos ${supplementsLogged}/${totalSupplements}`);
+
   return (
     <IndexCard accent="#0f766e" className="p-5">
       <div className="flex items-center gap-3">
@@ -1457,9 +1487,7 @@ function ClientReportRow({ c, onSelectClient }) {
           <div className="min-w-0">
             <p className="font-semibold text-stone-900 text-sm truncate">{c.name}</p>
             <p className="text-xs text-stone-500 mt-0.5">
-              Comidas {mealsLogged}/{totalMeals} ·{" "}
-              {todaysDay ? `Entrenamiento ${exLogged}/${totalExercises}` : "Descanso"}
-              {totalSupplements > 0 && <> · Suplementos {supplementsLogged}/{totalSupplements}</>}
+              {summaryParts.join(" · ")}
               {c.checkin?.savedToday ? (
                 <> · {moodEmoji(c.checkin.mood)} Energía {c.checkin.energy}/5</>
               ) : (
@@ -1480,6 +1508,7 @@ function ClientReportRow({ c, onSelectClient }) {
 
       {isOpen && (
         <div className="mt-4 pt-4 border-t border-stone-100 flex flex-col gap-4">
+          {c.hasMealPlan && (
           <div>
             <p className="text-[11px] font-medium text-stone-500 mb-2 uppercase tracking-wide">Comidas</p>
             <div className="flex flex-col gap-1.5">
@@ -1518,7 +1547,9 @@ function ClientReportRow({ c, onSelectClient }) {
               ))}
             </div>
           </div>
+          )}
 
+          {c.hasWorkoutPlan && (
           <div>
             <p className="text-[11px] font-medium text-stone-500 mb-2 uppercase tracking-wide">
               Entrenamiento · {getTodayWeekday()}
@@ -1545,6 +1576,7 @@ function ClientReportRow({ c, onSelectClient }) {
               <p className="text-xs text-stone-400">Hoy es día de descanso — no tiene rutina asignada.</p>
             )}
           </div>
+          )}
 
           {totalSupplements > 0 && (
             <div>
@@ -2745,12 +2777,12 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
     if (!selected) return;
     updateClient(selected.id, {
       planDraft: {
-        meals: generateMealPlanOption(selected.macros, foodLibrary).meals,
-        workoutDays: generateWorkoutDraft(exerciseLibrary),
+        meals: selected.hasMealPlan ? generateMealPlanOption(selected.macros, foodLibrary).meals : selected.meals,
+        workoutDays: selected.hasWorkoutPlan ? generateWorkoutDraft(exerciseLibrary) : selected.workoutDays,
       },
     });
-    setEditMeals(true);
-    setEditWorkout(true);
+    if (selected.hasMealPlan) setEditMeals(true);
+    if (selected.hasWorkoutPlan) setEditWorkout(true);
   };
 
   const approveDraft = () => {
@@ -2979,6 +3011,27 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                           Este cliente no usa la app — gestionar su plan solo por PDF
                         </label>
 
+                        <div className="flex flex-wrap gap-x-5 gap-y-2 mt-2">
+                          <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer w-fit">
+                            <input
+                              type="checkbox"
+                              checked={selected.hasMealPlan}
+                              onChange={() => updateClient(selected.id, { hasMealPlan: !selected.hasMealPlan })}
+                              className="w-3.5 h-3.5"
+                            />
+                            Incluye plan de alimentación
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer w-fit">
+                            <input
+                              type="checkbox"
+                              checked={selected.hasWorkoutPlan}
+                              onChange={() => updateClient(selected.id, { hasWorkoutPlan: !selected.hasWorkoutPlan })}
+                              className="w-3.5 h-3.5"
+                            />
+                            Incluye plan de entrenamiento
+                          </label>
+                        </div>
+
                         <div className="grid grid-cols-4 gap-3 mt-5">
                           {[
                             ["Calorías", `${selected.macros.kcal}`],
@@ -3041,10 +3094,16 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                       className="flex items-center justify-center gap-2 w-full py-3 text-sm font-medium text-white"
                       style={{ backgroundColor: "#c99a3e" }}
                     >
-                      <Sparkles size={15} /> Generar plan completo (comida + entrenamiento)
+                      <Sparkles size={15} />
+                      {selected.hasMealPlan && selected.hasWorkoutPlan
+                        ? "Generar plan completo (comida + entrenamiento)"
+                        : selected.hasMealPlan
+                        ? "Generar plan de alimentación"
+                        : "Generar plan de entrenamiento"}
                     </button>
                   )}
 
+                  {selected.hasMealPlan && (
                   <IndexCard accent="#c99a3e" className="p-6">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
@@ -3079,7 +3138,9 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                       </div>
                     )}
                   </IndexCard>
+                  )}
 
+                  {selected.hasWorkoutPlan && (
                   <IndexCard accent="#7c3aed" className="p-6">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
@@ -3127,6 +3188,7 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                       </div>
                     )}
                   </IndexCard>
+                  )}
 
                   <IndexCard accent="#db2777" className="p-6">
                     <div className="flex items-center justify-between mb-3">
@@ -3555,6 +3617,9 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
   const [newWeight, setNewWeight] = useState("");
   const [showWeightForm, setShowWeightForm] = useState(false);
   const [activeTab, setActiveTab] = useState("hoy");
+  const visibleClientTabs = CLIENT_TABS.filter(
+    (t) => (t.id !== "comidas" || client.hasMealPlan) && (t.id !== "entreno" || client.hasWorkoutPlan)
+  );
   const [progresoSubTab, setProgresoSubTab] = useState("perfil");
   const todayWeekday = getTodayWeekday();
   const [selectedWeekday, setSelectedWeekday] = useState(todayWeekday);
@@ -3803,9 +3868,11 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
   const supplementsPct = totalSupplementsCount ? suppLoggedCount / totalSupplementsCount : null;
 
   const nextAction = (() => {
-    const nextMeal = client.meals.find((m) => !isMealLogged(m.id));
-    if (nextMeal) return { label: `Comida: ${nextMeal.name}`, tab: "comidas" };
-    if (activeDay) {
+    if (client.hasMealPlan) {
+      const nextMeal = client.meals.find((m) => !isMealLogged(m.id));
+      if (nextMeal) return { label: `Comida: ${nextMeal.name}`, tab: "comidas" };
+    }
+    if (client.hasWorkoutPlan && activeDay) {
       const nextEx = activeDay.exercises.find((w) => !workoutLog[activeDay.id]?.[w.id]);
       if (nextEx) return { label: `Ejercicio: ${nextEx.name}`, tab: "entreno" };
     }
@@ -3869,29 +3936,33 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
               <h2 className="pp-display text-lg text-stone-900 mb-4">Plan de hoy</h2>
 
               <div className="flex items-start justify-around mb-4">
-                <div className="flex flex-col items-center gap-1.5">
-                  <ProgressRing pct={mealsPct} color={MACRO_COLORS.carbs} size={52} />
-                  <span className="text-[11px] font-medium text-stone-600">Comidas</span>
-                  <span className="text-[10px] text-stone-400">{mealsLoggedCount}/{totalMealsCount}</span>
-                </div>
+                {client.hasMealPlan && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <ProgressRing pct={mealsPct} color={MACRO_COLORS.carbs} size={52} />
+                    <span className="text-[11px] font-medium text-stone-600">Comidas</span>
+                    <span className="text-[10px] text-stone-400">{mealsLoggedCount}/{totalMealsCount}</span>
+                  </div>
+                )}
 
-                <div className="flex flex-col items-center gap-1.5">
-                  {workoutPct !== null ? (
-                    <>
-                      <ProgressRing pct={workoutPct} color="#7c3aed" size={52} />
-                      <span className="text-[11px] font-medium text-stone-600">Entreno</span>
-                      <span className="text-[10px] text-stone-400">{exLoggedCount}/{totalExercisesCount}</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-[52px] h-[52px] rounded-full border-2 border-dashed border-stone-300 flex items-center justify-center">
-                        <span className="text-[9px] text-stone-400 text-center leading-tight">Descanso</span>
-                      </div>
-                      <span className="text-[11px] font-medium text-stone-600">Entreno</span>
-                      <span className="text-[10px] text-stone-400">—</span>
-                    </>
-                  )}
-                </div>
+                {client.hasWorkoutPlan && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    {workoutPct !== null ? (
+                      <>
+                        <ProgressRing pct={workoutPct} color="#7c3aed" size={52} />
+                        <span className="text-[11px] font-medium text-stone-600">Entreno</span>
+                        <span className="text-[10px] text-stone-400">{exLoggedCount}/{totalExercisesCount}</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-[52px] h-[52px] rounded-full border-2 border-dashed border-stone-300 flex items-center justify-center">
+                          <span className="text-[9px] text-stone-400 text-center leading-tight">Descanso</span>
+                        </div>
+                        <span className="text-[11px] font-medium text-stone-600">Entreno</span>
+                        <span className="text-[10px] text-stone-400">—</span>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {totalSupplementsCount > 0 && (
                   <div className="flex flex-col items-center gap-1.5">
@@ -3908,18 +3979,22 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
               </div>
 
               <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => setActiveTab("comidas")}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium border border-stone-200 text-stone-600"
-                >
-                  <Utensils size={13} /> Ver comidas
-                </button>
-                <button
-                  onClick={() => setActiveTab("entreno")}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium border border-stone-200 text-stone-600"
-                >
-                  <Dumbbell size={13} /> Ver entreno
-                </button>
+                {client.hasMealPlan && (
+                  <button
+                    onClick={() => setActiveTab("comidas")}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium border border-stone-200 text-stone-600"
+                  >
+                    <Utensils size={13} /> Ver comidas
+                  </button>
+                )}
+                {client.hasWorkoutPlan && (
+                  <button
+                    onClick={() => setActiveTab("entreno")}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium border border-stone-200 text-stone-600"
+                  >
+                    <Dumbbell size={13} /> Ver entreno
+                  </button>
+                )}
               </div>
             </IndexCard>
 
@@ -4583,8 +4658,11 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-30">
-        <div className="max-w-md mx-auto grid grid-cols-4">
-          {CLIENT_TABS.map((tab) => {
+        <div
+          className="max-w-md mx-auto grid"
+          style={{ gridTemplateColumns: `repeat(${visibleClientTabs.length}, minmax(0,1fr))` }}
+        >
+          {visibleClientTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
