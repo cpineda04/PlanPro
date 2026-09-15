@@ -145,6 +145,7 @@ const INITIAL_CLIENTS = [
     usesApp: true,
     hasMealPlan: true,
     hasWorkoutPlan: true,
+    status: "active",
     macros: { kcal: 2450, protein: 180, carbs: 240, fats: 70 },
     meals: [
       {
@@ -275,6 +276,7 @@ const INITIAL_CLIENTS = [
     usesApp: false,
     hasMealPlan: true,
     hasWorkoutPlan: true,
+    status: "active",
     macros: { kcal: 1780, protein: 130, carbs: 165, fats: 55 },
     meals: [
       {
@@ -549,6 +551,29 @@ function IndexCard({ accent = "#0f766e", className = "", children }) {
   );
 }
 
+function ConfirmDialog({ config, onCancel }) {
+  if (!config) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-5" onClick={onCancel}>
+      <div className="bg-white max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="text-sm font-semibold text-stone-900 mb-2">{config.title}</p>
+        <p className="text-sm text-stone-600 mb-5">{config.message}</p>
+        <div className="flex gap-2 justify-end">
+          <button onClick={onCancel} className="px-4 py-2 text-xs font-medium text-stone-600 border border-stone-300">
+            Cancelar
+          </button>
+          <button
+            onClick={() => { config.onConfirm(); onCancel(); }}
+            className={`px-4 py-2 text-xs font-medium text-white ${config.danger ? "bg-red-600 hover:bg-red-700" : "bg-stone-900 hover:bg-stone-800"}`}
+          >
+            {config.confirmLabel || "Confirmar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // PANEL DEL COACH
 // ---------------------------------------------------------------------------
@@ -773,6 +798,7 @@ function NewClientForm({ onCreate, onCancel }) {
               usesApp: true,
               hasMealPlan: true,
               hasWorkoutPlan: true,
+              status: "active",
               macros: {
                 kcal: tdee,
                 protein: Math.round((tdee * 0.3) / 4),
@@ -919,7 +945,7 @@ const BILLING_STATUS_META = {
   vencido: { label: "Pago vencido", color: "#dc2626" },
 };
 
-function BillingPanel({ client, updateClient }) {
+function BillingPanel({ client, updateClient, askConfirm }) {
   const billing = client.billing || { amount: 0, currency: "USD", dueDate: "", status: "al_dia", history: [] };
   const [amount, setAmount] = useState(billing.amount);
   const [dueDate, setDueDate] = useState(billing.dueDate || "");
@@ -969,7 +995,16 @@ function BillingPanel({ client, updateClient }) {
             </div>
           )}
           <div className="flex gap-2">
-            <button onClick={rejectReceipt} className="flex-1 py-2 text-xs font-medium border border-stone-300 text-stone-600">
+            <button
+              onClick={() => askConfirm({
+                title: "¿Rechazar este comprobante?",
+                message: "El cliente va a tener que enviar uno nuevo. Su estado de pago pasará a \"vencido\".",
+                confirmLabel: "Rechazar",
+                danger: true,
+                onConfirm: rejectReceipt,
+              })}
+              className="flex-1 py-2 text-xs font-medium border border-stone-300 text-stone-600"
+            >
               Rechazar
             </button>
             <button
@@ -2751,9 +2786,12 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
   const [detailTab, setDetailTab] = useState("plan");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [editClientInfo, setEditClientInfo] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const askConfirm = (config) => setConfirmConfig(config);
 
-  const filtered = clients.filter((c) =>
-    c.name.toLowerCase().includes(query.toLowerCase())
+  const filtered = clients.filter(
+    (c) => c.name.toLowerCase().includes(query.toLowerCase()) && (showArchived || c.status !== "archived")
   );
   const selected = clients.find((c) => c.id === selectedId) || null;
 
@@ -2802,6 +2840,8 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
 
   return (
     <div className="flex flex-col md:flex-row min-h-[640px] pp-body">
+      <ConfirmDialog config={confirmConfig} onCancel={() => setConfirmConfig(null)} />
+
       {/* Barra superior móvil */}
       <div className="md:hidden flex items-center justify-between bg-stone-900 text-white px-5 py-4">
         <div>
@@ -2906,14 +2946,25 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
             />
           )}
 
-          <div className="mb-4 relative max-w-xs">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar cliente"
-              className="w-full pl-9 pr-3 py-2 text-sm border border-stone-300 focus:outline-none focus:border-teal-700 bg-white"
-            />
+          <div className="flex items-center gap-4 mb-4 flex-wrap">
+            <div className="relative max-w-xs flex-1 min-w-[200px]">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar cliente"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-stone-300 focus:outline-none focus:border-teal-700 bg-white"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={() => setShowArchived((v) => !v)}
+                className="w-3.5 h-3.5"
+              />
+              Mostrar archivados
+            </label>
           </div>
 
           <div className="grid gap-6 md:grid-cols-[minmax(0,320px)_1fr]">
@@ -2948,6 +2999,16 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                             <CreditCard size={10} /> Pago por revisar
                           </span>
                         )}
+                        {c.status === "paused" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5">
+                            ⏸ Pausado
+                          </span>
+                        )}
+                        {c.status === "archived" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5">
+                            🗄 Archivado
+                          </span>
+                        )}
                       </div>
                     </div>
                     <ChevronRight size={16} className="text-stone-400" />
@@ -2970,10 +3031,50 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                   <IndexCard accent="#0f766e" className="p-6">
                     <div className="flex items-start justify-between flex-wrap gap-3">
                       <div>
-                        <h2 className="pp-display text-xl text-stone-900">{selected.name}</h2>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="pp-display text-xl text-stone-900">{selected.name}</h2>
+                          {selected.status === "paused" && (
+                            <span className="text-[10px] font-medium text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5">⏸ Pausado</span>
+                          )}
+                          {selected.status === "archived" && (
+                            <span className="text-[10px] font-medium text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5">🗄 Archivado</span>
+                          )}
+                        </div>
                         <p className="text-sm text-stone-500 mt-1">
                           {selected.age} años · {selected.sex === "male" ? "Masculino" : "Femenino"} · {selected.weight} kg · {selected.height} cm
                         </p>
+                        <div className="flex gap-3 mt-1.5">
+                          {selected.status !== "active" && (
+                            <button
+                              onClick={() => updateClient(selected.id, { status: "active" })}
+                              className="text-[11px] font-medium text-teal-800 hover:underline"
+                            >
+                              Reactivar cliente
+                            </button>
+                          )}
+                          {selected.status !== "paused" && (
+                            <button
+                              onClick={() => updateClient(selected.id, { status: "paused" })}
+                              className="text-[11px] font-medium text-stone-500 hover:underline"
+                            >
+                              Pausar cliente
+                            </button>
+                          )}
+                          {selected.status !== "archived" && (
+                            <button
+                              onClick={() => askConfirm({
+                                title: "¿Archivar a este cliente?",
+                                message: "Dejará de aparecer en tu lista de clientes (a menos que actives \"Mostrar archivados\"). Puedes reactivarlo cuando quieras — no se borra nada de su información.",
+                                confirmLabel: "Archivar",
+                                danger: true,
+                                onConfirm: () => updateClient(selected.id, { status: "archived" }),
+                              })}
+                              className="text-[11px] font-medium text-stone-500 hover:underline"
+                            >
+                              Archivar cliente
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
@@ -3079,7 +3180,16 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                           </p>
                         </div>
                         <div className="flex gap-2 shrink-0">
-                          <button onClick={discardDraft} className="px-3 py-2 text-xs font-medium border border-stone-300 text-stone-600">
+                          <button
+                            onClick={() => askConfirm({
+                              title: "¿Descartar el borrador?",
+                              message: "Se perderá todo lo generado y editado en este borrador. Esta acción no se puede deshacer.",
+                              confirmLabel: "Descartar",
+                              danger: true,
+                              onConfirm: discardDraft,
+                            })}
+                            className="px-3 py-2 text-xs font-medium border border-stone-300 text-stone-600"
+                          >
                             Descartar
                           </button>
                           <button onClick={approveDraft} className="px-3 py-2 text-xs font-medium text-white bg-stone-900">
@@ -3296,7 +3406,7 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
                   )}
 
                   {detailTab === "pagos" && (
-                    <BillingPanel key={`bp-${selected.id}`} client={selected} updateClient={updateClient} />
+                    <BillingPanel key={`bp-${selected.id}`} client={selected} updateClient={updateClient} askConfirm={askConfirm} />
                   )}
                 </div>
               )}
