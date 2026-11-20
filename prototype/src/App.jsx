@@ -3,7 +3,7 @@ import {
   Users, Plus, ChevronRight, Check, TrendingUp, LogOut, Search,
   Utensils, Dumbbell, Sparkles, BookOpen, CreditCard,
   Smile, Flame, Camera, X, MessageCircle, ClipboardList,
-  Download, ArrowLeft, FileText, Home, Palette, Menu, HelpCircle, ChevronLeft, Smartphone
+  Download, ArrowLeft, FileText, Home, Palette, Menu, HelpCircle, ChevronLeft, Smartphone, ChevronDown
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -2878,6 +2878,8 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
   const [editClientInfo, setEditClientInfo] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
   const askConfirm = (config) => setConfirmConfig(config);
 
   const filtered = clients.filter(
@@ -2931,6 +2933,14 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
   return (
     <div className="flex flex-col md:flex-row min-h-[640px] pp-body">
       <ConfirmDialog config={confirmConfig} onCancel={() => setConfirmConfig(null)} />
+      {showHelp && (
+        <HelpCenter
+          role="coach"
+          onClose={() => setShowHelp(false)}
+          onOpenInstallGuide={() => { setShowHelp(false); setShowInstallGuide(true); }}
+        />
+      )}
+      {showInstallGuide && <InstallGuideModal accent="#0f766e" onClose={() => setShowInstallGuide(false)} />}
 
       {/* Barra superior móvil */}
       <div className="md:hidden flex items-center justify-between bg-stone-900 text-white px-5 py-4">
@@ -2961,6 +2971,12 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
               <item.Icon size={16} /> {item.label}
             </button>
           ))}
+          <button
+            onClick={() => { setShowHelp(true); setMobileMenuOpen(false); }}
+            className="flex items-center gap-2 px-3 py-3 text-sm text-left rounded border-t border-stone-800 mt-1 hover:bg-stone-800"
+          >
+            <HelpCircle size={16} /> Ayuda
+          </button>
         </nav>
       )}
 
@@ -2983,6 +2999,12 @@ function CoachApp({ clients, setClients, selectedId, setSelectedId, goToClientPo
             </button>
           ))}
         </nav>
+        <button
+          onClick={() => setShowHelp(true)}
+          className="mt-auto mx-3 flex items-center gap-2 px-3 py-2.5 text-sm text-left border border-stone-700 hover:bg-stone-800"
+        >
+          <HelpCircle size={16} /> Centro de ayuda
+        </button>
       </div>
 
       {/* Contenido principal */}
@@ -3894,6 +3916,236 @@ function InstallGuideModal({ onClose, accent = "#c1834e" }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// CENTRO DE AYUDA (coach y cliente)
+// ---------------------------------------------------------------------------
+
+const HELP_TOPICS = {
+  coach: [
+    {
+      id: "nuevo", Icon: Plus, title: "Agregar un cliente nuevo",
+      intro: "Crea la ficha del cliente con sus datos y su pago.",
+      steps: [
+        "En «Clientes», toca «Nuevo cliente».",
+        "Llena nombre, edad, sexo, peso, estatura y nivel de actividad. Las calorías base se calculan solas.",
+        "En «Pago», pon el monto mensual y la fecha en que pagó.",
+        "Toca «Crear cliente».",
+      ],
+    },
+    {
+      id: "plan", Icon: Sparkles, title: "Armar el plan de comidas y entreno",
+      intro: "Genera un borrador, ajústalo y apruébalo. El cliente no ve nada hasta que lo apruebes.",
+      steps: [
+        "Abre el cliente y entra a la pestaña «Plan».",
+        "Toca «Generar plan completo» (o solo comidas / solo entreno).",
+        "Edita comidas, cantidades, ejercicios y días de la semana.",
+        "Toca «Aprobar y publicar» para que el cliente lo vea, o «Descartar» para empezar de nuevo.",
+      ],
+    },
+    {
+      id: "pagos", Icon: CreditCard, title: "Pagos y fecha de cobro", isNew: true,
+      intro: "El cobro se repite el mismo día de cada mes.",
+      steps: [
+        "Abre el cliente y entra a la pestaña «Pagos». Arriba ves el monto y el próximo pago.",
+        "Toca «Editar monto y fecha» y elige la fecha en que pagó. El próximo pago se calcula solo, el mismo día del mes siguiente.",
+        "Cuando el cliente sube un comprobante, aparece ahí: «Confirmar pago» lo pasa al mes siguiente; «Rechazar» lo marca vencido.",
+        "En el menú «Pagos» ves el resumen de todos y configuras tus métodos de pago.",
+      ],
+    },
+    {
+      id: "seguimiento", Icon: TrendingUp, title: "Seguimiento del cliente",
+      intro: "Revisa cómo va cada cliente día a día.",
+      steps: [
+        "Pestaña «Seguimiento»: check-ins (ánimo y energía), peso, evaluaciones mensuales y fotos de progreso.",
+        "«Reporte diario» te muestra quién cumplió hoy y quién necesita atención.",
+        "Toca un cliente del reporte para ir directo a su ficha.",
+      ],
+    },
+    {
+      id: "biblioteca", Icon: BookOpen, title: "Biblioteca de alimentos y ejercicios",
+      intro: "Lo que agregues aquí aparece al armar los planes.",
+      steps: [
+        "Entra a «Biblioteca».",
+        "Elige «Alimentos» o «Ejercicios» y toca «Nuevo alimento» o «Nuevo ejercicio».",
+        "Guarda. Ya lo puedes usar en cualquier plan.",
+      ],
+    },
+    {
+      id: "marca", Icon: Palette, title: "Mi marca y PDF del plan",
+      intro: "Tu logo y nombre salen en la app del cliente y en los PDF.",
+      steps: [
+        "Entra a «Mi marca» y sube tu logo y tu nombre.",
+        "En la ficha del cliente toca «Plan en PDF» para descargarlo o imprimirlo con tu marca.",
+      ],
+    },
+    {
+      id: "estado", Icon: Users, title: "Pausar o archivar clientes",
+      intro: "Ordena tu lista sin perder información.",
+      steps: [
+        "Abre el cliente y usa «Pausar cliente» si se toma un descanso.",
+        "Usa «Archivar cliente» si ya no trabaja contigo. Puedes verlos con «Mostrar archivados».",
+      ],
+    },
+  ],
+  client: [
+    {
+      id: "hoy", Icon: Home, title: "Tu día en «Hoy»",
+      intro: "Todo lo que te toca hoy, en un solo lugar.",
+      steps: [
+        "Arriba ves tu progreso del día y lo siguiente que te falta.",
+        "Haz tu check-in: cuéntale a tu coach cómo te sientes y tu energía.",
+        "Cada día que cumples suma a tu racha 🔥.",
+      ],
+    },
+    {
+      id: "comidas", Icon: Utensils, title: "Registrar tus comidas",
+      intro: "Marca lo que comiste para que tu coach te pueda ayudar.",
+      steps: [
+        "Entra a «Comidas» y marca cada alimento que comiste.",
+        "Si comiste algo distinto, escríbelo o súbele una foto.",
+        "Marca también tus suplementos.",
+      ],
+    },
+    {
+      id: "entreno", Icon: Dumbbell, title: "Tu entrenamiento",
+      intro: "Tu rutina según el día de la semana.",
+      steps: [
+        "Entra a «Entreno» y elige el día.",
+        "Marca cada ejercicio cuando lo termines.",
+        "Si no hay rutina ese día, es tu día de descanso.",
+      ],
+    },
+    {
+      id: "cuenta", Icon: TrendingUp, title: "Tu progreso y evaluaciones",
+      intro: "En «Cuenta» ves cómo vas.",
+      steps: [
+        "«Perfil»: tus datos y objetivo diario.",
+        "«Seguimiento»: tu peso, fotos de progreso y la evaluación mensual cuando toque (verás un punto rojo).",
+      ],
+    },
+    {
+      id: "pago", Icon: CreditCard, title: "Pagar tu plan", isNew: true,
+      intro: "Tu pago vence el mismo día de cada mes.",
+      steps: [
+        "Entra a «Cuenta» → «Pago» y mira la fecha de tu próximo pago.",
+        "Paga con uno de los métodos de tu coach.",
+        "Toca «Subir comprobante de pago», elige la foto y toca «Enviar comprobante». Tu coach lo revisa y lo confirma.",
+      ],
+    },
+  ],
+};
+
+function HelpCenter({ role, onClose, onOpenInstallGuide, accent = "#0f766e" }) {
+  const [openId, setOpenId] = useState(null);
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const topics = HELP_TOPICS[role].filter(
+    (t) => !q || [t.title, t.intro, ...t.steps].join(" ").toLowerCase().includes(q)
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div
+        className="bg-stone-50 w-full sm:max-w-lg max-h-[92vh] flex flex-col sm:rounded-none rounded-t-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 pt-5 pb-4 bg-white border-b border-stone-200">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h2 className="pp-display text-xl text-stone-900">Centro de ayuda</h2>
+              <p className="text-xs text-stone-500">
+                {role === "coach" ? "Guías rápidas para manejar a tus clientes" : "Todo lo que necesitas para usar PlanPro"}
+              </p>
+            </div>
+            <button onClick={onClose} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-stone-900">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="¿Qué quieres hacer?"
+              className="w-full border border-stone-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-stone-600"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
+          {!q && (
+            <button
+              onClick={onOpenInstallGuide}
+              className="flex items-center gap-3 p-4 text-left text-white"
+              style={{ backgroundColor: "#0a0a0a" }}
+            >
+              <span className="w-10 h-10 flex items-center justify-center shrink-0" style={{ backgroundColor: accent }}>
+                <Smartphone size={20} />
+              </span>
+              <span className="flex-1">
+                <span className="block text-sm font-semibold">Agrega PlanPro a tu inicio</span>
+                <span className="block text-xs text-stone-400">Úsala como una app en iPhone o Android</span>
+              </span>
+              <ChevronRight size={16} className="text-stone-500" />
+            </button>
+          )}
+
+          {topics.length === 0 && (
+            <p className="text-sm text-stone-500 text-center py-6">No encontramos nada con «{query}». Prueba con otra palabra.</p>
+          )}
+
+          {topics.map((t) => {
+            const open = openId === t.id || !!q;
+            return (
+              <div key={t.id} className="bg-white border border-stone-200">
+                <button
+                  onClick={() => setOpenId(openId === t.id ? null : t.id)}
+                  className="w-full flex items-center gap-3 p-4 text-left"
+                  aria-expanded={open}
+                >
+                  <span className="w-9 h-9 flex items-center justify-center shrink-0" style={{ backgroundColor: `${accent}15`, color: accent }}>
+                    <t.Icon size={17} />
+                  </span>
+                  <span className="flex-1">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                      {t.title}
+                      {t.isNew && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 text-white" style={{ backgroundColor: accent }}>Nuevo</span>
+                      )}
+                    </span>
+                    <span className="block text-xs text-stone-500">{t.intro}</span>
+                  </span>
+                  <ChevronDown size={16} className={`text-stone-400 transition-transform ${open ? "rotate-180" : ""}`} />
+                </button>
+                {open && (
+                  <ol className="px-4 pb-4 flex flex-col gap-2.5">
+                    {t.steps.map((step, i) => (
+                      <li key={i} className="flex gap-3 text-sm text-stone-700">
+                        <span className="w-5 h-5 shrink-0 flex items-center justify-center text-[11px] font-bold text-white rounded-full" style={{ backgroundColor: accent }}>
+                          {i + 1}
+                        </span>
+                        <span className="leading-snug">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="px-5 py-3 bg-white border-t border-stone-200 text-center">
+          <p className="text-xs text-stone-500">
+            {role === "coach"
+              ? "¿Algo no funciona como esperabas? Escríbenos y te ayudamos."
+              : "¿Sigues con dudas? Escríbele a tu coach desde el ícono 💬 de arriba."}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
   const accent = coachProfile.accent;
   const mealLogs = client.mealLogs || {};
@@ -3903,6 +4155,7 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
   const [showWeightForm, setShowWeightForm] = useState(false);
   const [activeTab, setActiveTab] = useState("hoy");
   const [showInstallGuide, setShowInstallGuide] = useState(() => !hasSeenInstallGuide());
+  const [showHelp, setShowHelp] = useState(false);
   const visibleClientTabs = CLIENT_TABS.filter(
     (t) => (t.id !== "comidas" || client.hasMealPlan) && (t.id !== "entreno" || client.hasWorkoutPlan)
   );
@@ -4181,7 +4434,7 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowInstallGuide(true)} title="Ayuda: agregar PlanPro a tu inicio" className="flex items-center gap-1 text-xs text-stone-300 hover:text-white">
+            <button onClick={() => setShowHelp(true)} title="Centro de ayuda" className="flex items-center gap-1 text-xs text-stone-300 hover:text-white">
               <HelpCircle size={16} /> Ayuda
             </button>
             <button title="Escribirle a tu coach" className="text-stone-300 hover:text-white">
@@ -4946,6 +5199,14 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
         )}
       </div>
 
+      {showHelp && (
+        <HelpCenter
+          role="client"
+          accent={accent}
+          onClose={() => setShowHelp(false)}
+          onOpenInstallGuide={() => { setShowHelp(false); setShowInstallGuide(true); }}
+        />
+      )}
       {showInstallGuide && <InstallGuideModal accent={accent} onClose={() => setShowInstallGuide(false)} />}
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-30">
