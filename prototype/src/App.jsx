@@ -112,14 +112,18 @@ function isoOffset(days) {
   return d.toISOString().slice(0, 10);
 }
 
-// Suma días a una fecha ISO (yyyy-mm-dd) sin problemas de zona horaria.
-function addDaysIso(iso, days) {
-  const d = new Date((iso || new Date().toISOString().slice(0, 10)) + "T00:00:00");
-  d.setDate(d.getDate() + days);
+// Suma meses manteniendo el mismo día de cobro. Si el mes no tiene ese día
+// (p. ej. 31 en febrero) usa el último día del mes, sin perder el día original.
+function addMonthsIso(iso, months, billingDay) {
+  const base = new Date((iso || new Date().toISOString().slice(0, 10)) + "T00:00:00");
+  const day = billingDay || base.getDate();
+  const y = base.getFullYear();
+  const m = base.getMonth() + months;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const d = new Date(y, m, Math.min(day, lastDay));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-const BILLING_CYCLE_DAYS = 30;
+const dayOfIso = (iso) => (iso ? Number(iso.slice(8, 10)) : null);
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -813,7 +817,7 @@ function NewClientForm({ onCreate, onCancel }) {
       </div>
       {form.paidDate && (
         <p className="mt-2 text-xs text-stone-500">
-          Próximo pago: <span className="font-semibold text-stone-800">{formatDate(addDaysIso(form.paidDate, BILLING_CYCLE_DAYS))}</span> ({BILLING_CYCLE_DAYS} días después)
+          Próximo pago: <span className="font-semibold text-stone-800">{formatDate(addMonthsIso(form.paidDate, 1))}</span> (el día {dayOfIso(form.paidDate)} de cada mes)
         </p>
       )}
 
@@ -861,7 +865,8 @@ function NewClientForm({ onCreate, onCancel }) {
                 amount,
                 currency: "USD",
                 lastPaymentDate: paidDate || "",
-                dueDate: paidDate ? addDaysIso(paidDate, BILLING_CYCLE_DAYS) : "",
+                billingDay: dayOfIso(paidDate),
+                dueDate: paidDate ? addMonthsIso(paidDate, 1) : "",
                 status: "al_dia",
                 history: [],
               },
@@ -994,22 +999,22 @@ function BillingPanel({ client, updateClient, askConfirm }) {
   const billing = client.billing || { amount: 0, currency: "USD", dueDate: "", status: "al_dia", history: [] };
   const [amount, setAmount] = useState(billing.amount);
   const [paidDate, setPaidDate] = useState(
-    billing.lastPaymentDate || (billing.dueDate ? addDaysIso(billing.dueDate, -BILLING_CYCLE_DAYS) : "")
+    billing.lastPaymentDate || (billing.dueDate ? addMonthsIso(billing.dueDate, -1, billing.billingDay) : "")
   );
   const [editing, setEditing] = useState(!billing.dueDate);
   const meta = BILLING_STATUS_META[billing.status] || BILLING_STATUS_META.al_dia;
-  const previewDue = paidDate ? addDaysIso(paidDate, BILLING_CYCLE_DAYS) : "";
+  const previewDue = paidDate ? addMonthsIso(paidDate, 1) : "";
 
   const saveTerms = () => {
     if (!paidDate) return;
     updateClient(client.id, {
-      billing: { ...billing, amount, lastPaymentDate: paidDate, dueDate: previewDue },
+      billing: { ...billing, amount, lastPaymentDate: paidDate, billingDay: dayOfIso(paidDate), dueDate: previewDue },
     });
     setEditing(false);
   };
 
-  // Al confirmar un pago, el próximo vencimiento se corre 30 días
-  // a partir del vencimiento actual (así se mantiene el mismo día de cobro).
+  // Al confirmar un pago, el próximo vencimiento pasa al mes siguiente,
+  // siempre el mismo día de cobro.
   const confirmPayment = () => {
     const base = billing.dueDate || new Date().toISOString().slice(0, 10);
     updateClient(client.id, {
@@ -1018,7 +1023,7 @@ function BillingPanel({ client, updateClient, askConfirm }) {
         ...billing,
         status: "al_dia",
         lastPaymentDate: base,
-        dueDate: addDaysIso(base, BILLING_CYCLE_DAYS),
+        dueDate: addMonthsIso(base, 1, billing.billingDay || dayOfIso(base)),
         history: [...(billing.history || []), { id: `pay${Date.now()}`, date: "Hoy", amount, status: "confirmado" }],
       },
     });
@@ -1048,7 +1053,7 @@ function BillingPanel({ client, updateClient, askConfirm }) {
               Próximo pago: <span className="font-semibold text-stone-900">{billing.dueDate ? formatDate(billing.dueDate) : "sin definir"}</span>
             </p>
             {billing.lastPaymentDate && (
-              <p className="text-[11px] text-stone-400">Último pago: {formatDate(billing.lastPaymentDate)} · se renueva cada {BILLING_CYCLE_DAYS} días</p>
+              <p className="text-[11px] text-stone-400">Último pago: {formatDate(billing.lastPaymentDate)} · se cobra el día {billing.billingDay || dayOfIso(billing.dueDate)} de cada mes</p>
             )}
             <button onClick={() => setEditing(true)} className="mt-3 w-full py-2 text-xs font-medium border border-stone-300 text-stone-700 hover:bg-white">
               Editar monto y fecha
@@ -1079,7 +1084,7 @@ function BillingPanel({ client, updateClient, askConfirm }) {
             </div>
             <p className="text-xs text-stone-500 mb-3">
               {previewDue
-                ? <>Próximo pago: <span className="font-semibold text-stone-800">{formatDate(previewDue)}</span> ({BILLING_CYCLE_DAYS} días después)</>
+                ? <>Próximo pago: <span className="font-semibold text-stone-800">{formatDate(previewDue)}</span> (el día {dayOfIso(paidDate)} de cada mes)</>
                 : "Elige la fecha en que pagó el cliente."}
             </p>
             <div className="flex gap-2">
