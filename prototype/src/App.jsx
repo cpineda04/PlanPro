@@ -3,7 +3,7 @@ import {
   Users, Plus, ChevronRight, Check, TrendingUp, LogOut, Search,
   Utensils, Dumbbell, Sparkles, BookOpen, CreditCard,
   Smile, Flame, Camera, X, MessageCircle, ClipboardList,
-  Download, ArrowLeft, FileText, Home, Palette, Menu
+  Download, ArrowLeft, FileText, Home, Palette, Menu, HelpCircle, ChevronLeft, Smartphone
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -3719,6 +3719,91 @@ function PaymentCard({ client, coachProfile, accent, receiptPreview, pickReceipt
   );
 }
 
+// ---------------------------------------------------------------------------
+// GUÍA: AGREGAR PLANPRO A LA PANTALLA DE INICIO
+// ---------------------------------------------------------------------------
+
+const INSTALL_GUIDE_KEY = "planpro_install_guide_seen";
+const INSTALL_GUIDE_STEPS = 6; // portada + 5 pasos
+
+function hasSeenInstallGuide() {
+  try { return localStorage.getItem(INSTALL_GUIDE_KEY) === "1"; } catch { return true; }
+}
+function markInstallGuideSeen() {
+  try { localStorage.setItem(INSTALL_GUIDE_KEY, "1"); } catch { /* sin almacenamiento */ }
+}
+
+function InstallGuideModal({ onClose, accent = "#c1834e" }) {
+  const [platform, setPlatform] = useState(null);
+  const [step, setStep] = useState(0);
+  const close = () => { markInstallGuideSeen(); onClose(); };
+  const last = step === INSTALL_GUIDE_STEPS - 1;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-sm max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200">
+          {platform ? (
+            <button onClick={() => { setPlatform(null); setStep(0); }} className="flex items-center gap-1 text-xs text-stone-500">
+              <ChevronLeft size={14} /> Cambiar
+            </button>
+          ) : <span className="text-sm font-semibold">Agrega PlanPro a tu inicio</span>}
+          <button onClick={close} className="text-xs font-medium text-stone-500 hover:text-stone-900">Omitir</button>
+        </div>
+
+        {!platform ? (
+          <div className="p-5 flex flex-col gap-4">
+            <p className="text-sm text-stone-600">
+              Ten PlanPro a un toque, como una app. ¿Qué teléfono usas?
+            </p>
+            {[{ id: "iphone", label: "iPhone", sub: "Con Safari" }, { id: "android", label: "Android", sub: "Con Chrome" }].map((o) => (
+              <button
+                key={o.id}
+                onClick={() => setPlatform(o.id)}
+                className="flex items-center gap-3 border border-stone-200 p-4 text-left hover:border-stone-400"
+              >
+                <Smartphone size={22} style={{ color: accent }} />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold">{o.label}</span>
+                  <span className="block text-xs text-stone-500">{o.sub}</span>
+                </span>
+                <ChevronRight size={16} className="text-stone-400" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 min-h-0 bg-black flex items-center justify-center">
+              <img
+                src={`/guia/${platform}-${step}.jpeg`}
+                alt={`Paso ${step} para ${platform === "iphone" ? "iPhone" : "Android"}`}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-stone-200">
+              <button
+                onClick={() => setStep(step - 1)}
+                disabled={step === 0}
+                className="px-3 py-2 text-xs font-medium border border-stone-200 disabled:opacity-30"
+              >
+                Anterior
+              </button>
+              <span className="text-xs text-stone-500">{step === 0 ? "Inicio" : `Paso ${step} de ${INSTALL_GUIDE_STEPS - 1}`}</span>
+              <button
+                onClick={() => (last ? close() : setStep(step + 1))}
+                className="px-3 py-2 text-xs font-medium text-white"
+                style={{ backgroundColor: accent }}
+              >
+                {last ? "Listo" : "Siguiente"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
   const accent = coachProfile.accent;
   const mealLogs = client.mealLogs || {};
@@ -3727,6 +3812,7 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
   const [newWeight, setNewWeight] = useState("");
   const [showWeightForm, setShowWeightForm] = useState(false);
   const [activeTab, setActiveTab] = useState("hoy");
+  const [showInstallGuide, setShowInstallGuide] = useState(() => !hasSeenInstallGuide());
   const visibleClientTabs = CLIENT_TABS.filter(
     (t) => (t.id !== "comidas" || client.hasMealPlan) && (t.id !== "entreno" || client.hasWorkoutPlan)
   );
@@ -4005,6 +4091,9 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={() => setShowInstallGuide(true)} title="Ayuda: agregar PlanPro a tu inicio" className="flex items-center gap-1 text-xs text-stone-300 hover:text-white">
+              <HelpCircle size={16} /> Ayuda
+            </button>
             <button title="Escribirle a tu coach" className="text-stone-300 hover:text-white">
               <MessageCircle size={16} />
             </button>
@@ -4766,6 +4855,8 @@ function ClientApp({ client, coachProfile, onUpdate, backToCoach }) {
           </>
         )}
       </div>
+
+      {showInstallGuide && <InstallGuideModal accent={accent} onClose={() => setShowInstallGuide(false)} />}
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-30">
         <div
