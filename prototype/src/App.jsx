@@ -3887,7 +3887,7 @@ function InstallGuideModal({ onClose, accent = "#c1834e" }) {
           <>
             <div className="flex-1 min-h-0 bg-black flex items-center justify-center">
               <img
-                src={`/guia/${platform}-${step}.jpeg`}
+                src={`guia/${platform}-${step}.jpeg`}
                 alt={`Paso ${step} para ${platform === "iphone" ? "iPhone" : "Android"}`}
                 className="max-h-full max-w-full object-contain"
               />
