@@ -112,6 +112,15 @@ function isoOffset(days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Suma días a una fecha ISO (yyyy-mm-dd) sin problemas de zona horaria.
+function addDaysIso(iso, days) {
+  const d = new Date((iso || new Date().toISOString().slice(0, 10)) + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const BILLING_CYCLE_DAYS = 30;
+
 function formatDate(iso) {
   if (!iso) return "";
   const d = new Date(iso + "T00:00:00");
@@ -712,6 +721,7 @@ function ClientInfoEditor({ client, updateClient, onDone }) {
 function NewClientForm({ onCreate, onCancel }) {
   const [form, setForm] = useState({
     name: "", age: 28, sex: "male", weight: 75, height: 175, activity: 1.2,
+    amount: 0, paidDate: new Date().toISOString().slice(0, 10),
   });
   const tdee = calcTdee(form);
 
@@ -780,6 +790,33 @@ function NewClientForm({ onCreate, onCancel }) {
         </label>
       </div>
 
+      <p className="mt-5 text-sm font-medium text-stone-700">Pago</p>
+      <div className="mt-2 grid grid-cols-2 gap-4">
+        <label className="text-sm text-stone-600">
+          Monto mensual (USD)
+          <input
+            type="number"
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+            value={form.amount}
+            onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+          />
+        </label>
+        <label className="text-sm text-stone-600">
+          Fecha de pago
+          <input
+            type="date"
+            className="mt-1 w-full border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-teal-700"
+            value={form.paidDate}
+            onChange={(e) => setForm({ ...form, paidDate: e.target.value })}
+          />
+        </label>
+      </div>
+      {form.paidDate && (
+        <p className="mt-2 text-xs text-stone-500">
+          Próximo pago: <span className="font-semibold text-stone-800">{formatDate(addDaysIso(form.paidDate, BILLING_CYCLE_DAYS))}</span> ({BILLING_CYCLE_DAYS} días después)
+        </p>
+      )}
+
       <div className="mt-4 flex items-center justify-between bg-stone-50 border border-stone-200 px-4 py-3">
         <span className="text-sm text-stone-500">Calorías base estimadas</span>
         <span className="pp-display text-xl text-teal-800">{tdee} kcal</span>
@@ -792,9 +829,10 @@ function NewClientForm({ onCreate, onCancel }) {
         <button
           onClick={() => {
             if (!form.name.trim()) return;
+            const { amount, paidDate, ...profile } = form;
             onCreate({
               id: `c${Date.now()}`,
-              ...form,
+              ...profile,
               usesApp: true,
               hasMealPlan: true,
               hasWorkoutPlan: true,
@@ -819,7 +857,14 @@ function NewClientForm({ onCreate, onCancel }) {
               extraMeals: [],
               supplements: [],
               supplementLog: {},
-              billing: { amount: 0, currency: "USD", dueDate: "", status: "al_dia", history: [] },
+              billing: {
+                amount,
+                currency: "USD",
+                lastPaymentDate: paidDate || "",
+                dueDate: paidDate ? addDaysIso(paidDate, BILLING_CYCLE_DAYS) : "",
+                status: "al_dia",
+                history: [],
+              },
               pendingReceipt: null,
               planDraft: null,
               mealLogs: {},
@@ -948,22 +993,32 @@ const BILLING_STATUS_META = {
 function BillingPanel({ client, updateClient, askConfirm }) {
   const billing = client.billing || { amount: 0, currency: "USD", dueDate: "", status: "al_dia", history: [] };
   const [amount, setAmount] = useState(billing.amount);
-  const [dueDate, setDueDate] = useState(billing.dueDate || "");
+  const [paidDate, setPaidDate] = useState(
+    billing.lastPaymentDate || (billing.dueDate ? addDaysIso(billing.dueDate, -BILLING_CYCLE_DAYS) : "")
+  );
+  const [editing, setEditing] = useState(!billing.dueDate);
   const meta = BILLING_STATUS_META[billing.status] || BILLING_STATUS_META.al_dia;
+  const previewDue = paidDate ? addDaysIso(paidDate, BILLING_CYCLE_DAYS) : "";
 
   const saveTerms = () => {
-    updateClient(client.id, { billing: { ...billing, amount, dueDate } });
+    if (!paidDate) return;
+    updateClient(client.id, {
+      billing: { ...billing, amount, lastPaymentDate: paidDate, dueDate: previewDue },
+    });
+    setEditing(false);
   };
 
+  // Al confirmar un pago, el próximo vencimiento se corre 30 días
+  // a partir del vencimiento actual (así se mantiene el mismo día de cobro).
   const confirmPayment = () => {
-    const newDue = new Date(dueDate || Date.now());
-    newDue.setDate(newDue.getDate() + 30);
+    const base = billing.dueDate || new Date().toISOString().slice(0, 10);
     updateClient(client.id, {
       pendingReceipt: null,
       billing: {
         ...billing,
         status: "al_dia",
-        dueDate: newDue.toISOString().slice(0, 10),
+        lastPaymentDate: base,
+        dueDate: addDaysIso(base, BILLING_CYCLE_DAYS),
         history: [...(billing.history || []), { id: `pay${Date.now()}`, date: "Hoy", amount, status: "confirmado" }],
       },
     });
@@ -982,6 +1037,63 @@ function BillingPanel({ client, updateClient, askConfirm }) {
         <span className="text-[10px] font-medium px-2 py-1" style={{ backgroundColor: `${meta.color}15`, color: meta.color }}>
           {meta.label}
         </span>
+      </div>
+
+      <div className="mb-5 border border-stone-200 bg-stone-50 p-4">
+        {!editing ? (
+          <>
+            <p className="text-[11px] uppercase tracking-wide text-stone-500">Plan mensual</p>
+            <p className="pp-display text-2xl text-stone-900">${billing.amount} {billing.currency}</p>
+            <p className="text-sm text-stone-600 mt-1">
+              Próximo pago: <span className="font-semibold text-stone-900">{billing.dueDate ? formatDate(billing.dueDate) : "sin definir"}</span>
+            </p>
+            {billing.lastPaymentDate && (
+              <p className="text-[11px] text-stone-400">Último pago: {formatDate(billing.lastPaymentDate)} · se renueva cada {BILLING_CYCLE_DAYS} días</p>
+            )}
+            <button onClick={() => setEditing(true)} className="mt-3 w-full py-2 text-xs font-medium border border-stone-300 text-stone-700 hover:bg-white">
+              Editar monto y fecha
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-xs font-medium text-stone-600 mb-2">Monto y fecha de pago</p>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <label className="text-[11px] text-stone-500">
+                Monto (USD)
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="mt-1 w-full border border-stone-300 px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-teal-700"
+                />
+              </label>
+              <label className="text-[11px] text-stone-500">
+                Fecha de pago
+                <input
+                  type="date"
+                  value={paidDate}
+                  onChange={(e) => setPaidDate(e.target.value)}
+                  className="mt-1 w-full border border-stone-300 px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-teal-700"
+                />
+              </label>
+            </div>
+            <p className="text-xs text-stone-500 mb-3">
+              {previewDue
+                ? <>Próximo pago: <span className="font-semibold text-stone-800">{formatDate(previewDue)}</span> ({BILLING_CYCLE_DAYS} días después)</>
+                : "Elige la fecha en que pagó el cliente."}
+            </p>
+            <div className="flex gap-2">
+              {billing.dueDate && (
+                <button onClick={() => setEditing(false)} className="flex-1 py-2 text-xs font-medium border border-stone-300 text-stone-600">
+                  Cancelar
+                </button>
+              )}
+              <button onClick={saveTerms} disabled={!paidDate} className="flex-1 py-2 text-xs font-medium bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-40">
+                Guardar
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {client.pendingReceipt ? (
@@ -1019,33 +1131,6 @@ function BillingPanel({ client, updateClient, askConfirm }) {
       ) : (
         <p className="text-sm text-stone-400 mb-5">Sin comprobante pendiente de revisión.</p>
       )}
-
-      <div className="pt-5 border-t border-stone-100">
-        <p className="text-xs font-medium text-stone-600 mb-2">Términos de pago</p>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <label className="text-[11px] text-stone-500">
-            Monto (USD)
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              className="mt-1 w-full border border-stone-300 px-2.5 py-2 text-sm focus:outline-none focus:border-teal-700"
-            />
-          </label>
-          <label className="text-[11px] text-stone-500">
-            Próximo vencimiento
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="mt-1 w-full border border-stone-300 px-2.5 py-2 text-sm focus:outline-none focus:border-teal-700"
-            />
-          </label>
-        </div>
-        <button onClick={saveTerms} className="w-full py-2 text-xs font-medium bg-stone-900 text-white hover:bg-stone-800">
-          Guardar términos
-        </button>
-      </div>
 
       {billing.history?.length > 0 && (
         <div className="mt-5 pt-5 border-t border-stone-100">
